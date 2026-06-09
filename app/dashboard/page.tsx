@@ -7,10 +7,11 @@ import StatCard from '@/components/StatCard';
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({
+    client: 0,
+    vehicule: 0,
     rendez_vous: 0,
     intervention: 0,
     facture: 0,
-    client: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -28,10 +29,11 @@ export default function DashboardPage() {
         }, {});
 
         setStats({
+          client: counts.client || 0,
+          vehicule: counts.vehicule || 0,
           rendez_vous: counts.rendez_vous || 0,
           intervention: counts.intervention || 0,
           facture: counts.facture || 0,
-          client: counts.client || 0,
         });
       }
       setLoading(false);
@@ -40,10 +42,11 @@ export default function DashboardPage() {
   }, []);
 
   const cards = [
+    { href: '/dashboard/client', icon: '👤', label: 'Clients', count: stats.client },
+    { href: '/dashboard/vehicule', icon: '🚗', label: 'Véhicules', count: stats.vehicule },
     { href: '/dashboard/rendez-vous', icon: '📅', label: 'Rendez-vous', count: stats.rendez_vous },
     { href: '/dashboard/intervention', icon: '🔧', label: 'Interventions', count: stats.intervention, color: 'text-orange-600' },
     { href: '/dashboard/facture', icon: '📄', label: 'Factures', count: stats.facture, color: 'text-green-600' },
-    { href: '/dashboard/client', icon: '👤', label: 'Clients', count: stats.client },
   ];
 
   return (
@@ -53,9 +56,9 @@ export default function DashboardPage() {
         <p className="text-gray-600 mb-10">Bienvenue dans Amarkhys ERP Garage</p>
 
         {loading ? (
-          <p>Chargement des statistiques...</p>
+          <p className="text-center py-12">Chargement des statistiques...</p>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
             {cards.map((card, index) => (
               <StatCard
                 key={index}

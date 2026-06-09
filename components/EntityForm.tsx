@@ -7,10 +7,12 @@ import { getFormConfig } from '@/lib/form-service';
 import { useRouter } from 'next/navigation';
 
 type EntityFormProps = {
-  entityKey: string;         // ex: "client", "vehicule", ...
+  entityKey: string;         // ex: "client", "vehicule", "intervention"
   title: string;
   description?: string;
   successRedirect?: string;
+  nextActionHref?: string;   // 👈 nouveau
+  nextActionLabel?: string;  // 👈 nouveau
 };
 
 export default function EntityForm({
@@ -18,6 +20,8 @@ export default function EntityForm({
   title,
   description,
   successRedirect,
+  nextActionHref,
+  nextActionLabel,
 }: EntityFormProps) {
   const router = useRouter();
 
@@ -25,13 +29,13 @@ export default function EntityForm({
   const [entityLabel, setEntityLabel] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastData, setLastData] = useState<any | null>(null);
 
   useEffect(() => {
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        // va chercher form_schema dans form_configs
         const { entity, schema } = await getFormConfig(entityKey);
         setSchema(schema);
         setEntityLabel(entity.label);
@@ -46,9 +50,11 @@ export default function EntityForm({
   }, [entityKey]);
 
   const handleSuccess = (data?: any) => {
-    console.log(`Enregistrement ${entityKey} :`, data);
+    setLastData(data || null);
+
     if (successRedirect) {
       router.push(successRedirect);
+      return;
     }
   };
 
@@ -73,20 +79,33 @@ export default function EntityForm({
   }
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
-      <h1 className="text-3xl font-bold mb-2">{title}</h1>
-      {description && (
-        <p className="text-gray-500 mb-4">{description}</p>
-      )}
-      <p className="text-gray-400 mb-8">
-        Entité : <strong className="uppercase">{entityLabel || entityKey}</strong>
-      </p>
+    <div className="p-8 max-w-3xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold mb-2">{title}</h1>
+        {description && (
+          <p className="text-gray-500 mb-2">{description}</p>
+        )}
+        <p className="text-gray-400">
+          Entité : <strong className="uppercase">{entityLabel || entityKey}</strong>
+        </p>
+      </div>
 
       <DynamicForm
         entityKey={entityKey}
-        config={schema}          // 👈 IMPORTANT : on passe le form_schema
+        config={schema}
         onSuccess={handleSuccess}
       />
+
+      {/* Bouton d'action suivante si fourni */}
+      {nextActionHref && nextActionLabel && lastData && (
+        <button
+          type="button"
+          onClick={() => router.push(nextActionHref)}
+          className="mt-4 w-full border border-gray-300 rounded-2xl px-4 py-3 text-center hover:bg-gray-50"
+        >
+          {nextActionLabel}
+        </button>
+      )}
     </div>
   );
 }

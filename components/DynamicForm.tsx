@@ -19,16 +19,20 @@ type FormConfig = {
 
 type DynamicFormProps = {
   entityKey: string;
-  config?: FormConfig;   // pour les formulaires dynamiques (form_schema)
-  fields?: Field[];      // pour compat avec les anciens appels
+  config?: FormConfig;
+  fields?: Field[];
+  entityLabel?: string;
   onSuccess?: (data?: any) => void;
+  onSubmit?: (data?: any) => void;
 };
 
 export default function DynamicForm({
   entityKey,
   config,
   fields: fieldsProp,
+  entityLabel,
   onSuccess,
+  onSubmit,
 }: DynamicFormProps) {
   const fields: Field[] = config?.fields || fieldsProp || [];
 
@@ -41,36 +45,35 @@ export default function DynamicForm({
       const optionsMap: Record<string, any[]> = {};
 
       for (const field of fields) {
-        if (
-          field.type === 'select' &&
-          (field.name.includes('client') || field.name.includes('vehicule'))
-        ) {
-          const relatedKey = field.name.includes('client') ? 'client' : 'vehicule';
+        if (field.type !== 'select') continue;
 
-          const { data: entityType, error: etError } = await supabase
+        let relatedKey = '';
+        if (field.name.includes('client')) relatedKey = 'client';
+        else if (field.name.includes('vehicule')) relatedKey = 'vehicule';
+        else if (field.name.includes('intervention')) relatedKey = 'intervention';
+
+        if (relatedKey) {
+          const { data: entityType } = await supabase
             .from('entity_types')
             .select('id')
             .eq('key', relatedKey)
             .maybeSingle();
 
-          if (etError || !entityType) continue;
+          if (entityType?.id) {
+            const { data } = await supabase
+              .from('entity_records')
+              .select('id, data')
+              .eq('entity_type_id', entityType.id)
+              .limit(200);
 
-          const { data } = await supabase
-            .from('entity_records')
-            .select('id, data')
-            .eq('entity_type_id', entityType.id)
-            .limit(100);
-
-          optionsMap[field.name] = data || [];
+            optionsMap[field.name] = data || [];
+          }
         }
       }
-
       setDynamicOptions(optionsMap);
     }
 
-    if (fields.length) {
-      loadOptions();
-    }
+    if (fields.length) loadOptions();
   }, [fields]);
 
   const handleChange = (name: string, value: any) => {
@@ -119,6 +122,7 @@ export default function DynamicForm({
 
       alert('✅ Enregistrement réussi !');
       onSuccess?.(formData);
+      onSubmit?.(formData);
       setFormData({});
     } catch (err: any) {
       alert('Erreur : ' + err.message);
@@ -154,18 +158,11 @@ export default function DynamicForm({
                 let displayName = 'Sans nom';
 
                 if (field.name.includes('client')) {
-                  displayName =
-                    data.nom ||
-                    data.nom_client ||
-                    data.name ||
-                    'Client sans nom';
+                  displayName = `${data.nom || ''} ${data.prenom || ''}`.trim() || data.name || 'Client sans nom';
                 } else if (field.name.includes('vehicule')) {
-                  displayName =
-                    data.matricule ||
-                    data.immatriculation ||
-                    data.plaque ||
-                    data.modele ||
-                    'Véhicule sans nom';
+                  displayName = data.matricule || data.modele || data.plaque || 'Véhicule sans nom';
+                } else if (field.name.includes('intervention')) {
+                  displayName = data.description ? data.description.substring(0, 40) : 'Intervention';
                 }
 
                 return (

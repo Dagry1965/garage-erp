@@ -66,8 +66,9 @@ export default function EntityFormPage() {
       </h1>
 
       <DynamicForm
-        config={formSchema}          // <-- utilise ton form_schema dynamique
-        entityLabel={entity.label}
+        entityKey={entityKey}       // 👈 obligatoire pour l’insert
+        config={formSchema}         // 👈 schéma dynamique depuis form_configs
+        entityLabel={entity.label}  // optionnel, si tu l’utilises dans le composant
       />
     </div>
   );

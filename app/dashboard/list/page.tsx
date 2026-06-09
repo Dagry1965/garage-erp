@@ -51,26 +51,7 @@ export default function ListPage() {
   const openDetails = (record: any) => setSelectedRecord(record);
   const closeDetails = () => setSelectedRecord(null);
 
-  const deleteRecord = async () => {
-    if (!selectedRecord) return;
-    if (!confirm("Supprimer cet enregistrement ?")) return;
-
-    const { error } = await supabase
-      .from('entity_records')
-      .delete()
-      .eq('id', selectedRecord.id);
-
-    if (error) {
-      alert("Erreur lors de la suppression");
-    } else {
-      alert("✅ Enregistrement supprimé");
-      closeDetails();
-      // Rafraîchir la liste
-      window.location.reload();
-    }
-  };
-
-  if (loading) return <div className="p-12 text-center">Chargement...</div>;
+  if (loading) return <div className="p-12 text-center">Chargement de la liste...</div>;
 
   return (
     <div className="p-8">
@@ -92,11 +73,11 @@ export default function ListPage() {
             className="border border-gray-300 rounded-2xl px-5 py-4"
           >
             <option value="all">Tous les types</option>
+            <option value="client">Client</option>
+            <option value="vehicule">Véhicule</option>
             <option value="rendez_vous">Rendez-vous</option>
             <option value="intervention">Intervention</option>
             <option value="facture">Facture</option>
-            <option value="client">Client</option>
-            <option value="vehicule">Véhicule</option>
           </select>
         </div>
 
@@ -105,67 +86,63 @@ export default function ListPage() {
             <thead>
               <tr className="bg-gray-50 border-b">
                 <th className="text-left p-5 font-medium">Type</th>
-                <th className="text-left p-5 font-medium">Contenu</th>
+                <th className="text-left p-5 font-medium">Informations principales</th>
                 <th className="text-right p-5 font-medium">Date</th>
               </tr>
             </thead>
             <tbody>
-              {filteredRecords.map((record) => (
-                <tr 
-                  key={record.id} 
-                  className="border-b hover:bg-gray-50 cursor-pointer"
-                  onClick={() => openDetails(record)}
-                >
-                  <td className="p-5 font-medium">
-                    {record.entity_types?.label || record.entity_types?.key}
-                  </td>
-                  <td className="p-5 text-sm text-gray-600">
-                    {Object.entries(record.data || {})
-                      .slice(0, 4)
-                      .map(([key, value]) => (
-                        <div key={key} className="mb-1">
-                          <strong>{key}:</strong> {String(value).slice(0, 35)}
-                        </div>
-                      ))}
-                  </td>
-                  <td className="p-5 text-right text-sm text-gray-500">
-                    {new Date(record.created_at).toLocaleDateString('fr-FR')}
-                  </td>
-                </tr>
-              ))}
+              {filteredRecords.map((record) => {
+                const d = record.data || {};
+                return (
+                  <tr 
+                    key={record.id} 
+                    className="border-b hover:bg-gray-50 cursor-pointer"
+                    onClick={() => openDetails(record)}
+                  >
+                    <td className="p-5 font-medium">
+                      {record.entity_types?.label}
+                    </td>
+                    <td className="p-5 text-sm text-gray-600">
+                      {d.nom && <div><strong>Client :</strong> {d.nom} {d.prenom}</div>}
+                      {d.matricule && <div><strong>Véhicule :</strong> {d.matricule}</div>}
+                      {d.type_intervention && <div><strong>Type :</strong> {d.type_intervention}</div>}
+                      {d.description && <div><strong>Description :</strong> {d.description.substring(0, 70)}...</div>}
+                      {d.montant && <div><strong>Montant :</strong> {d.montant} FCFA</div>}
+                    </td>
+                    <td className="p-5 text-right text-sm text-gray-500">
+                      {new Date(record.created_at).toLocaleDateString('fr-FR')}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Modal Détails */}
+      {/* Modal Détails amélioré */}
       {selectedRecord && (
-        <div 
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" 
-          onClick={closeDetails}
-        >
-          <div 
-            className="bg-white rounded-3xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={closeDetails}>
+          <div className="bg-white rounded-3xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
             <div className="p-8">
-              <h2 className="text-2xl font-bold mb-6">
+              <h2 className="text-2xl font-bold mb-6 border-b pb-4">
                 Détails — {selectedRecord.entity_types?.label}
               </h2>
-              <pre className="bg-gray-100 p-6 rounded-2xl text-sm overflow-auto">
-                {JSON.stringify(selectedRecord.data, null, 2)}
-              </pre>
+              
+              <div className="space-y-4">
+                {Object.entries(selectedRecord.data || {}).map(([key, value]) => (
+                  <div key={key} className="flex justify-between border-b pb-3">
+                    <span className="font-medium text-gray-700 capitalize">{key}</span>
+                    <span className="text-gray-900 font-medium">{String(value)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="border-t p-6 flex justify-between">
-              <button 
-                onClick={deleteRecord}
-                className="px-6 py-3 text-red-600 hover:bg-red-50 rounded-2xl font-medium"
-              >
-                🗑️ Supprimer
-              </button>
+
+            <div className="border-t p-6 flex justify-end">
               <button 
                 onClick={closeDetails}
-                className="px-8 py-4 bg-gray-200 rounded-2xl font-medium"
+                className="px-8 py-4 bg-gray-200 rounded-2xl font-medium hover:bg-gray-300"
               >
                 Fermer
               </button>
