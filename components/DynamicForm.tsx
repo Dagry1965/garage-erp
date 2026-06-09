@@ -40,13 +40,12 @@ export default function DynamicForm({
   const [saving, setSaving] = useState(false);
   const [dynamicOptions, setDynamicOptions] = useState<Record<string, any[]>>({});
 
+  // Chargement options dynamiques
   useEffect(() => {
     async function loadOptions() {
       const optionsMap: Record<string, any[]> = {};
-
       for (const field of fields) {
         if (field.type !== 'select') continue;
-
         let relatedKey = '';
         if (field.name.includes('client')) relatedKey = 'client';
         else if (field.name.includes('vehicule')) relatedKey = 'vehicule';
@@ -65,14 +64,12 @@ export default function DynamicForm({
               .select('id, data')
               .eq('entity_type_id', entityType.id)
               .limit(200);
-
             optionsMap[field.name] = data || [];
           }
         }
       }
       setDynamicOptions(optionsMap);
     }
-
     if (fields.length) loadOptions();
   }, [fields]);
 
@@ -83,113 +80,108 @@ export default function DynamicForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-
     try {
-      const { data: entity } = await supabase
-        .from('entity_types')
-        .select('id')
-        .eq('key', entityKey)
-        .maybeSingle();
-
+      const { data: entity } = await supabase.from('entity_types').select('id').eq('key', entityKey).maybeSingle();
       let entityId = entity?.id;
-
       if (!entityId) {
-        const { data: fallback } = await supabase
-          .from('entity_types')
-          .select('id')
-          .limit(1)
-          .maybeSingle();
+        const { data: fallback } = await supabase.from('entity_types').select('id').limit(1).maybeSingle();
         entityId = fallback?.id;
       }
+      const { data: tenant } = await supabase.from('tenants').select('id').limit(1).maybeSingle();
 
-      if (!entityId) throw new Error("Aucun type d'entité disponible");
-
-      const { data: tenant } = await supabase
-        .from('tenants')
-        .select('id')
-        .limit(1)
-        .maybeSingle();
-
-      const { error } = await supabase
-        .from('entity_records')
-        .insert({
-          entity_type_id: entityId,
-          tenant_id: tenant?.id,
-          data: formData,
-        });
+      const { error } = await supabase.from('entity_records').insert({
+        entity_type_id: entityId,
+        tenant_id: tenant?.id,
+        data: formData,
+      });
 
       if (error) throw error;
 
       alert('✅ Enregistrement réussi !');
       onSuccess?.(formData);
-      onSubmit?.(formData);
       setFormData({});
     } catch (err: any) {
       alert('Erreur : ' + err.message);
-      console.error(err);
     } finally {
       setSaving(false);
     }
   };
 
-  if (!fields.length) {
-    return <div>Pas de champs de formulaire configurés.</div>;
-  }
+  // ==================== BADGE STATUT AMÉLIORÉ (haut à droite) ====================
+  const getStatusBadge = (status: string = 'brouillon') => {
+    const config: Record<string, { color: string; icon: string; label: string }> = {
+      brouillon: { color: 'bg-gray-100 text-gray-700', icon: '📝', label: 'Brouillon' },
+      diagnostic_en_cours: { color: 'bg-blue-100 text-blue-700', icon: '🔍', label: 'Diagnostic en cours' },
+      en_attente_validation_client: { color: 'bg-amber-100 text-amber-700', icon: '⏳', label: 'En attente client' },
+      valide_client: { color: 'bg-emerald-100 text-emerald-700', icon: '✅', label: 'Validé client' },
+      travaux_en_cours: { color: 'bg-orange-100 text-orange-700', icon: '🔧', label: 'Travaux en cours' },
+      travaux_termine: { color: 'bg-purple-100 text-purple-700', icon: '🏁', label: 'Travaux terminés' },
+      transmis_compta: { color: 'bg-indigo-100 text-indigo-700', icon: '📤', label: 'Transmis compta' },
+      emise: { color: 'bg-cyan-100 text-cyan-700', icon: '📄', label: 'Facture émise' },
+      partiellement_payee: { color: 'bg-yellow-100 text-yellow-700', icon: '💰', label: 'Partiellement payée' },
+      payee: { color: 'bg-green-100 text-green-700', icon: '💵', label: 'Payée' },
+    };
+
+    const st = config[status] || { color: 'bg-gray-100 text-gray-700', icon: '📌', label: status || 'Brouillon' };
+
+    return (
+      <div className={`inline-flex items-center gap-2 px-5 py-3 rounded-3xl text-sm font-semibold shadow-sm ${st.color}`}>
+        <span className="text-lg">{st.icon}</span>
+        <span>{st.label}</span>
+      </div>
+    );
+  };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {fields.map((field) => (
-        <div key={field.name} className="space-y-1">
-          <label className="block text-sm font-medium text-gray-700">
-            {field.label}
-            {field.required && <span className="text-red-500 ml-1">*</span>}
-          </label>
+    <form onSubmit={handleSubmit} className="space-y-6 relative">
+      {/* BADGE STATUT EN HAUT À DROITE */}
+      <div className="absolute top-0 right-0">
+        {getStatusBadge(formData.status)}
+      </div>
 
-          {field.type === 'select' ? (
-            <select
-              value={formData[field.name] || ''}
-              onChange={(e) => handleChange(field.name, e.target.value)}
-              className="w-full border border-gray-300 rounded-2xl px-4 py-3"
-              required={field.required}
-            >
-              <option value="">Sélectionnez...</option>
-              {(dynamicOptions[field.name] || []).map((option: any) => {
-                const data = option.data || {};
-                let displayName = 'Sans nom';
+      <div className="pt-14"> {/* espace pour le badge */}
+        {fields.map((field) => (
+          <div key={field.name} className="space-y-2 mb-6">
+            <label className="block text-sm font-medium text-gray-700">
+              {field.label}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </label>
 
-                if (field.name.includes('client')) {
-                  displayName = `${data.nom || ''} ${data.prenom || ''}`.trim() || data.name || 'Client sans nom';
-                } else if (field.name.includes('vehicule')) {
-                  displayName = data.matricule || data.modele || data.plaque || 'Véhicule sans nom';
-                } else if (field.name.includes('intervention')) {
-                  displayName = data.description ? data.description.substring(0, 40) : 'Intervention';
-                }
-
-                return (
-                  <option key={option.id} value={option.id}>
-                    {displayName}
-                  </option>
-                );
-              })}
-            </select>
-          ) : field.type === 'textarea' ? (
-            <textarea
-              value={formData[field.name] || ''}
-              onChange={(e) => handleChange(field.name, e.target.value)}
-              className="w-full border border-gray-300 rounded-2xl px-4 py-3 min-h-[100px]"
-              required={field.required}
-            />
-          ) : (
-            <input
-              type={field.type}
-              value={formData[field.name] || ''}
-              onChange={(e) => handleChange(field.name, e.target.value)}
-              className="w-full border border-gray-300 rounded-2xl px-4 py-3"
-              required={field.required}
-            />
-          )}
-        </div>
-      ))}
+            {field.type === 'select' ? (
+              <select
+                value={formData[field.name] || ''}
+                onChange={(e) => handleChange(field.name, e.target.value)}
+                className="w-full border border-gray-300 rounded-2xl px-4 py-3"
+                required={field.required}
+              >
+                <option value="">Sélectionnez...</option>
+                {(dynamicOptions[field.name] || []).map((option: any) => {
+                  const data = option.data || {};
+                  let displayName = 'Sans nom';
+                  if (field.name.includes('client')) displayName = `${data.nom || ''} ${data.prenom || ''}`.trim() || 'Client';
+                  else if (field.name.includes('vehicule')) displayName = data.matricule || data.modele || 'Véhicule';
+                  return <option key={option.id} value={option.id}>{displayName}</option>;
+                })}
+              </select>
+            ) : field.type === 'textarea' ? (
+              <textarea
+                value={formData[field.name] || ''}
+                onChange={(e) => handleChange(field.name, e.target.value)}
+                className="w-full border border-gray-300 rounded-2xl px-4 py-3 min-h-[100px]"
+                required={field.required}
+              />
+            ) : (
+              <input
+                type={field.type}
+                value={formData[field.name] || ''}
+                onChange={(e) => handleChange(field.name, e.target.value)}
+                className="w-full border border-gray-300 rounded-2xl px-4 py-3"
+                required={field.required}
+              />
+            )}
+          </div>
+        ))}
+      </div>
 
       <button
         type="submit"
