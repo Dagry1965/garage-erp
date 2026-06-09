@@ -2,110 +2,101 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import DynamicForm from '@/components/DynamicForm';
-import { getFormConfig } from '@/lib/form-service';
 import { useRouter } from 'next/navigation';
+import DynamicForm from './DynamicForm';
+import NextStepIndicator from './NextStepIndicator';
+import WorkflowButtons from './WorkflowButtons';
+import { getFormConfig } from '@/lib/form-service';
 
 type EntityFormProps = {
-  entityKey: string;         // ex: "client", "vehicule", "intervention"
+  entityKey: string;
   title: string;
   description?: string;
   successRedirect?: string;
-  nextActionHref?: string;   // 👈 nouveau
-  nextActionLabel?: string;  // 👈 nouveau
+  nextActionHref?: string;
+  nextActionLabel?: string;
+  showWorkflow?: boolean;
 };
 
 export default function EntityForm({
   entityKey,
   title,
   description,
-  successRedirect,
+  successRedirect = '/dashboard/list',
   nextActionHref,
-  nextActionLabel,
+  nextActionLabel = 'Voir la liste',
+  showWorkflow = false,
 }: EntityFormProps) {
   const router = useRouter();
-
-  const [schema, setSchema] = useState<any | null>(null);
-  const [entityLabel, setEntityLabel] = useState('');
+  const [config, setConfig] = useState<any>(null);    // contiendra schema
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastData, setLastData] = useState<any | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [recordId, setRecordId] = useState<string | null>(null);
+  const [currentStatus, setCurrentStatus] = useState('brouillon');
 
   useEffect(() => {
     async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const { entity, schema } = await getFormConfig(entityKey);
-        setSchema(schema);
-        setEntityLabel(entity.label);
-      } catch (err: any) {
-        console.error(err);
-        setError(err.message || 'Erreur chargement formulaire');
-      } finally {
-        setLoading(false);
-      }
+      const { schema } = await getFormConfig(entityKey);  // 👈 on récupère schema
+      setConfig(schema);                                  // 👈 on stocke schema seulement
+      setLoading(false);
     }
     load();
   }, [entityKey]);
 
-  const handleSuccess = (data?: any) => {
-    setLastData(data || null);
-
-    if (successRedirect) {
-      router.push(successRedirect);
-      return;
-    }
+  const handleSuccess = (data: any) => {
+    const fakeId = 'REC-' + Date.now();
+    setRecordId(fakeId);
+    setCurrentStatus(data?.status || 'brouillon');
+    setSuccess(true);
   };
 
   if (loading) {
-    return <div className="p-8 text-center">Chargement du formulaire...</div>;
+    return <div className="p-12 text-center">Chargement du formulaire...</div>;
   }
 
-  if (error) {
+  if (success && recordId) {
     return (
-      <div className="p-8 text-center text-red-600">
-        {error}
-      </div>
-    );
-  }
+      <div className="p-12 max-w-2xl mx-auto text-center">
+        <div className="text-8xl mb-6">✅</div>
+        <h2 className="text-4xl font-bold text-green-600 mb-4">{title} enregistré !</h2>
 
-  if (!schema) {
-    return (
-      <div className="p-8 text-center">
-        Aucun schéma de formulaire configuré pour cette entité.
+        {showWorkflow && (
+          <div className="mt-12 border-t pt-8">
+            <NextStepIndicator currentStatus={currentStatus} entityKey={entityKey} />
+            <h3 className="text-lg font-semibold mt-8 mb-4">Actions possibles</h3>
+            <WorkflowButtons
+              entityKey={entityKey}
+              currentStatus={currentStatus}
+              recordId={recordId}
+              onStatusChange={setCurrentStatus}
+            />
+          </div>
+        )}
+
+        <button
+          onClick={() => router.push(successRedirect)}
+          className="mt-10 py-4 px-8 bg-white border border-gray-300 rounded-2xl font-medium hover:bg-gray-50"
+        >
+          📋 {nextActionLabel}
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="p-8 max-w-3xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">{title}</h1>
-        {description && (
-          <p className="text-gray-500 mb-2">{description}</p>
+    <div className="p-8">
+      <div className="max-w-3xl mx-auto">
+        <h1 className="text-4xl font-bold mb-2">{title}</h1>
+        {description && <p className="text-gray-600 mb-8">{description}</p>}
+
+        {config && (
+          <DynamicForm
+            entityKey={entityKey}
+            config={config}          // maintenant = { title, fields: [...] }
+            onSuccess={handleSuccess}
+          />
         )}
-        <p className="text-gray-400">
-          Entité : <strong className="uppercase">{entityLabel || entityKey}</strong>
-        </p>
       </div>
-
-      <DynamicForm
-        entityKey={entityKey}
-        config={schema}
-        onSuccess={handleSuccess}
-      />
-
-      {/* Bouton d'action suivante si fourni */}
-      {nextActionHref && nextActionLabel && lastData && (
-        <button
-          type="button"
-          onClick={() => router.push(nextActionHref)}
-          className="mt-4 w-full border border-gray-300 rounded-2xl px-4 py-3 text-center hover:bg-gray-50"
-        >
-          {nextActionLabel}
-        </button>
-      )}
     </div>
   );
 }
